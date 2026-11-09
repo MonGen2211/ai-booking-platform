@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Doctor {
+  id              String   @id @default(cuid()) @db.VarChar(191)
+  name            String   @db.VarChar(191)
+  specialty       String   @db.VarChar(191)
+  introduction    String   @db.Text
+  qualifications  String   @db.Text
+  experienceYears Int      @default(0) @db.UnsignedInt
+  consultationFee Decimal  @db.Decimal(12, 2)
+  address         String   @db.VarChar(500)
+  averageRating   Decimal? @db.Decimal(2, 1)
+  reviewCount     Int      @default(0) @db.UnsignedInt
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @db.DateTime(3)
+
+  @@index([isActive, specialty])
+}
+
+model User {
+  id           String        @id @default(cuid()) @db.VarChar(191)
+  email        String        @unique @db.VarChar(320)
+  passwordHash String        @db.VarChar(255)
+  createdAt    DateTime      @default(now()) @db.DateTime(3)
+  updatedAt    DateTime      @updatedAt @db.DateTime(3)
+  sessions     AuthSession[]
+}
+
+model AuthSession {
+  id                    String    @id @default(cuid()) @db.VarChar(191)
+  userId                String    @db.VarChar(191)
+  currentRefreshJtiHash String    @db.Char(64)
+  lastActivityAt        DateTime  @default(now()) @db.DateTime(3)
+  absoluteExpiresAt     DateTime  @db.DateTime(3)
+  revokedAt             DateTime? @db.DateTime(3)
+  createdAt             DateTime  @default(now()) @db.DateTime(3)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([absoluteExpiresAt])
+}
