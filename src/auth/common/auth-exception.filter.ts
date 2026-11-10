@@ -25,7 +25,13 @@ export class AuthExceptionFilter implements ExceptionFilter {
             ? details.message
             : exception.message;
 
-      response.status(status).json({ code, message });
+      response.status(status).json({ code, message,
+        ...(Array.isArray(details.suggestions) ? { suggestions: details.suggestions } : {}) });
+      return;
+    }
+
+    if (exception instanceof Error && exception.name === 'MulterError') {
+      response.status(HttpStatus.BAD_REQUEST).json({ code: 'VALIDATION_ERROR', message: 'Invalid attachment' });
       return;
     }
 

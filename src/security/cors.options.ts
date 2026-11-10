@@ -17,8 +17,8 @@ export function createCorsOptions() {
       callback(null, requestOrigin === origin);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'Idempotency-Key'],
     exposedHeaders: ['X-Access-Token'],
   };
 }

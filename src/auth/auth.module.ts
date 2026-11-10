@@ -9,6 +9,6 @@ import { CsrfService } from './security/csrf.service.js';
   imports: [JwtModule.register({})],
   controllers: [AuthController],
   providers: [AuthService, AuthGuard, CsrfService],
-  exports: [AuthService],
+  exports: [AuthService, AuthGuard, CsrfService, JwtModule],
 })
 export class AuthModule {}

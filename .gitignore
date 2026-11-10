@@ -21,6 +21,7 @@ src/generated/prisma/
 
 # Logs
 logs/
+uploads/
 *.log
 
 # Editor and operating system files

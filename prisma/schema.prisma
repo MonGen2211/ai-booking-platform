@@ -21,6 +21,11 @@ model Doctor {
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now()) @db.DateTime(3)
   updatedAt       DateTime @updatedAt @db.DateTime(3)
+  user            User?
+  schedules       DoctorSchedule[]
+  exceptions      DoctorScheduleException[]
+  slots           AppointmentSlot[]
+  appointments    Appointment[]
 
   @@index([isActive, specialty])
 }
@@ -32,6 +37,184 @@ model User {
   createdAt    DateTime      @default(now()) @db.DateTime(3)
   updatedAt    DateTime      @updatedAt @db.DateTime(3)
   sessions     AuthSession[]
+  role         UserRole @default(PATIENT)
+  doctorId     String? @unique @db.VarChar(191)
+  doctor       Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  patients     PatientProfile[]
+  bookings     Appointment[] @relation("Booker")
+  attachments  AppointmentAttachment[]
+  events       AppointmentEvent[]
+  idempotency  IdempotencyRecord[]
+  accessChanges AccessAudit[] @relation("AccessActor")
+  accessTargetChanges AccessAudit[] @relation("AccessTarget")
+}
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum PatientKind {
+  SELF
+  RELATIVE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model PatientProfile {
+  id String @id @default(cuid()) @db.VarChar(191)
+  ownerId String @db.VarChar(191)
+  kind PatientKind
+  fullName String @db.VarChar(191)
+  birthDate DateTime @db.Date
+  phone String @db.VarChar(32)
+  relationship String? @db.VarChar(64)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  appointments Appointment[]
+  @@index([ownerId, kind])
+}
+
+model DoctorSchedule {
+  id String @id @default(cuid()) @db.VarChar(191)
+  doctorId String @db.VarChar(191)
+  weekday Int @db.UnsignedTinyInt
+  startMinute Int @db.UnsignedSmallInt
+  endMinute Int @db.UnsignedSmallInt
+  durationMinutes Int @db.UnsignedSmallInt
+  effectiveFrom DateTime @db.Date
+  effectiveTo DateTime? @db.Date
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  @@index([doctorId, weekday, effectiveFrom])
+}
+
+model DoctorScheduleException {
+  id String @id @default(cuid()) @db.VarChar(191)
+  doctorId String @db.VarChar(191)
+  date DateTime @db.Date
+  isClosed Boolean @default(false)
+  intervals Json?
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  @@unique([doctorId, date])
+}
+
+model AppointmentSlot {
+  id String @id @default(cuid()) @db.VarChar(191)
+  doctorId String @db.VarChar(191)
+  startsAt DateTime @db.DateTime(3)
+  endsAt DateTime @db.DateTime(3)
+  isOpen Boolean @default(true)
+  scheduleVersion Int @default(1) @db.UnsignedInt
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  occupancy SlotOccupancy?
+  appointments Appointment[]
+  @@unique([doctorId, startsAt])
+  @@index([doctorId, isOpen, startsAt])
+}
+
+model SlotOccupancy {
+  slotId String @id @db.VarChar(191)
+  appointmentId String @unique @db.VarChar(191)
+  slot AppointmentSlot @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+}
+
+model Appointment {
+  id String @id @default(cuid()) @db.VarChar(191)
+  code String @unique @db.VarChar(32)
+  bookerId String @db.VarChar(191)
+  patientProfileId String @db.VarChar(191)
+  doctorId String @db.VarChar(191)
+  slotId String @db.VarChar(191)
+  status AppointmentStatus @default(PENDING)
+  version Int @default(1) @db.UnsignedInt
+  reason String @db.Text
+  symptoms String? @db.Text
+  patientSnapshot Json
+  doctorNameSnapshot String @db.VarChar(191)
+  addressSnapshot String @db.VarChar(500)
+  feeSnapshot Decimal @db.Decimal(12, 2)
+  cancelDeadline DateTime @db.DateTime(3)
+  rescheduleDeadline DateTime @db.DateTime(3)
+  policySnapshot Json
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+  booker User @relation("Booker", fields: [bookerId], references: [id], onDelete: Restrict)
+  patientProfile PatientProfile @relation(fields: [patientProfileId], references: [id], onDelete: Restrict)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  slot AppointmentSlot @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  occupancy SlotOccupancy?
+  events AppointmentEvent[]
+  attachments AppointmentAttachment[]
+  idempotency IdempotencyRecord[]
+  @@index([bookerId, status, createdAt])
+  @@index([doctorId, status, createdAt])
+}
+
+model AppointmentEvent {
+  id String @id @default(cuid()) @db.VarChar(191)
+  appointmentId String @db.VarChar(191)
+  actorId String @db.VarChar(191)
+  type String @db.VarChar(32)
+  oldStatus AppointmentStatus?
+  newStatus AppointmentStatus
+  oldSlotId String? @db.VarChar(191)
+  newSlotId String? @db.VarChar(191)
+  reason String? @db.Text
+  version Int @db.UnsignedInt
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([appointmentId, createdAt])
+}
+
+model AppointmentAttachment {
+  id String @id @default(cuid()) @db.VarChar(191)
+  ownerId String @db.VarChar(191)
+  appointmentId String? @db.VarChar(191)
+  storageKey String @unique @db.VarChar(191)
+  originalName String @db.VarChar(255)
+  verifiedMime String @db.VarChar(64)
+  size Int @db.UnsignedInt
+  expiresAt DateTime @db.DateTime(3)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  @@index([ownerId, appointmentId, expiresAt])
+}
+
+model IdempotencyRecord {
+  id String @id @default(cuid()) @db.VarChar(191)
+  userId String @db.VarChar(191)
+  operation String @db.VarChar(64)
+  key String @db.VarChar(191)
+  normalizedRequestHash String @db.Char(64)
+  appointmentId String @db.VarChar(191)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  @@unique([userId, operation, key])
+}
+
+model AccessAudit {
+  id String @id @default(cuid()) @db.VarChar(191)
+  actorId String @db.VarChar(191)
+  targetId String @db.VarChar(191)
+  oldRole UserRole
+  newRole UserRole
+  oldDoctorId String? @db.VarChar(191)
+  newDoctorId String? @db.VarChar(191)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  actor User @relation("AccessActor", fields: [actorId], references: [id], onDelete: Restrict)
+  target User @relation("AccessTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  @@index([targetId, createdAt])
 }
 
 model AuthSession {
