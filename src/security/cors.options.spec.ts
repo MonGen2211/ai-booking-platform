@@ -14,8 +14,8 @@ describe('CORS options', () => {
     expect(createCorsOptions()).toEqual({
       origin: expect.any(Function),
       credentials: true,
-      methods: ['GET', 'POST', 'OPTIONS'],
-      allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token'],
+      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'Idempotency-Key'],
       exposedHeaders: ['X-Access-Token'],
     });
   });
@@ -45,6 +45,16 @@ describe('CORS options', () => {
       expect(preflight.headers['access-control-allow-origin']).toBe('http://localhost:5173');
       expect(preflight.headers['access-control-allow-credentials']).toBe('true');
       expect(preflight.headers['access-control-expose-headers']).toContain('X-Access-Token');
+      for (const method of ['PATCH', 'DELETE', 'POST']) {
+        const result = await request(app.getHttpServer())
+          .options('/me/patient-profiles/example')
+          .set('Origin', 'http://localhost:5173')
+          .set('Access-Control-Request-Method', method)
+          .set('Access-Control-Request-Headers', 'authorization,content-type,idempotency-key')
+          .expect(204);
+        expect(result.headers['access-control-allow-methods']).toContain(method);
+        expect(result.headers['access-control-allow-headers']).toContain('Idempotency-Key');
+      }
 
       const untrusted = await request(app.getHttpServer())
         .options('/auth/login')
